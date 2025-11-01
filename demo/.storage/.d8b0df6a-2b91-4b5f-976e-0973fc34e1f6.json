@@ -1,4 +1,0 @@
-{
-   "id": "d8b0df6a-2b91-4b5f-976e-0973fc34e1f6",
-   "full_text": "from .file_1 import *\n\n\ndef sum_x():\n\n    print('file_2 f')\n    return func() + func()\n\n"
-}
