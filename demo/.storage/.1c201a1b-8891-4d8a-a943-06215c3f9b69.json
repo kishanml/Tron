@@ -1,0 +1,4 @@
+{
+   "id": "1c201a1b-8891-4d8a-a943-06215c3f9b69",
+   "full_text": "from src import *\n\n\nprint(func())\nprint(sum_x())"
+}

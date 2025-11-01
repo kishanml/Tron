@@ -1,0 +1,4 @@
+{
+   "id": "f727812a-834e-40da-908c-eb3430bb017e",
+   "full_text": "import numpy as np\n\ndef func():\n    print('file_1 f')\n    return np.random.rand()*10"
+}

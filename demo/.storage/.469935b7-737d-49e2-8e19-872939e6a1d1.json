@@ -1,0 +1,4 @@
+{
+   "id": "469935b7-737d-49e2-8e19-872939e6a1d1",
+   "full_text": "from src.file_1 import func\nfrom src.file_2 import *"
+}
