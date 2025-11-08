@@ -12,6 +12,9 @@ import pickle
 from typing import List, Dict
 
 
+# TODO : handle wild-card imports
+
+
 class Module:
 
     def __init__(self,file_path : str):
@@ -22,13 +25,15 @@ class Module:
 
 class Code:
 
-    def __init__(self, file_path: str):
+    def __init__(self, file_path: str, code_text : str = ""):
 
         self.file_path = file_path
         self.name : str = os.path.basename(file_path)
+        self.text : str = code_text
         self.local_imports = set() 
         self.external_imports = set() 
         self.called_entities = set()
+
 
 
 
@@ -66,7 +71,7 @@ class DirecTree:
         else:
             self.meta_data : Dict = {}
             self.tree = self.__create_tree__(self.head)
-            self.tree_struct = self.__traverse_tree__(self.tree,0,self.tree.name)
+            self.tree_struct = self.__connect_imports__(self.tree,0,self.tree.name)
             # print(self.nodes)
 
             json.dump(self.meta_data,open(self.meta_data_loc,'w'))
@@ -171,10 +176,14 @@ class DirecTree:
         try:
             code_text = open(child.file_path,'r').read()
             code_tree = ast.parse(code_text)
+            child.text = code_text
+
         except Exception as e:
             print(f'{e} occured during parsing code')
             return
     
+        nodes_to_recurse = set()
+
         for node in ast.walk(code_tree):
             
             if isinstance(node, (ast.Import, ast.ImportFrom)):
@@ -195,18 +204,6 @@ class DirecTree:
 
                     child.local_imports.add(resolved_path)
 
-                    if isinstance(node, ast.Import):
-                        # print(node.names)
-                        for alias in node.names:
-                            entity_name = alias.asname if alias.asname else alias.name
-                            child.called_entities.add(entity_name)
-                    
-                    elif isinstance(node, ast.ImportFrom):
-                        # print(node.names)
-                        for alias in node.names:
-                            entity_name = alias.asname if alias.asname else alias.name
-                            child.called_entities.add(entity_name)
-                    
                     if resolved_path in self.node_map:
 
                         resolved_node = self.node_map[resolved_path]
@@ -215,16 +212,57 @@ class DirecTree:
                         resolved_node = Code(resolved_path)
                         self.node_map[resolved_path] = resolved_node
                         
-                    self.__find_imports_(resolved_node)
-                
+                    try:
+                        imported_code_text = open(resolved_path, 'r').read()
+                        imported_code_tree = ast.parse(imported_code_text)
+                    except Exception as e:
+                        print(f'Failed to parse imported code at {resolved_path}: {e}')
+                        continue 
+
+                    
+                    child.text += f"\n\n# --- Inlined Code from: {resolved_path} ---\n\n"
+
+                    entities_to_find = node.names
+                    
+                    for alias in entities_to_find:
+                        target_entity_name = alias.name
+                        
+                        for imported_node in ast.walk(imported_code_tree):
+                            
+                            is_definition = isinstance(imported_node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
+                            
+                            if is_definition and imported_node.name == target_entity_name:
+                                
+                                try:
+                                    entity_source = ast.get_source_segment(imported_code_text, imported_node)
+                                    if entity_source:
+                                        child.text += f"\n\n# Inlining {target_entity_name}\n"
+                                        child.text += entity_source
+                                        child.text += "\n"
+                                        
+                                        child.local_imports.add(resolved_path)
+                                        entity_name_to_track = alias.asname if alias.asname else alias.name
+                                        child.called_entities.add(entity_name_to_track)
+                                        break 
+                                
+                                except Exception as e:
+                                    print(f"Error getting source segment for {target_entity_name} in {resolved_path}: {e}")
+                                    
+                    nodes_to_recurse.add(resolved_node)
+
                 else:
                     if isinstance(node, ast.Import):
                         for alias in node.names:
                             child.external_imports.add(alias.name.split('.')[0])
                     elif node.module:
                         child.external_imports.add(node.module.split('.')[0])
+
+        for resolved_node in nodes_to_recurse:
+            self.__find_imports_(resolved_node)
+
         
-        # print(child,child.file_path,child.called_entities,child.local_imports)
+        
+        print(child,child.file_path,child.called_entities,child.local_imports,child.text)
 
         
             
